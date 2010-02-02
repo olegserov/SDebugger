@@ -3,8 +3,7 @@ class CodeCoverageTest extends PHPUnit_Framework_TestCase
 {
     private $_paths = array(
         '/classes',
-        '/lib/other',
-        '/lib/FTemplate',
+        '/lib/'
     );
 
     public function testLoadAllFiles()

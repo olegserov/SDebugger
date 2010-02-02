@@ -1,12 +1,20 @@
 <?php
 class SDebugger
 {
+    /**
+     * Singelton instance of class
+     * @var SDebugger
+     */
     protected static $_instance;
 
+    /**
+     * Config data
+     * @var array
+     */
     protected $_config = array(
         'log_errors' => true,
         'throw_errors' => false,
-        'tmp_path' => '/tmp/',
+        'tmp_path' => null,
         'delay' => 60,
         // 'mail_to' => '...',
         // 'mail_from' => '...',
@@ -14,6 +22,10 @@ class SDebugger
         'custom_log_callback' => null
     );
 
+    /**
+     * Get SDebugger
+     * @return SDebugger
+     */
     public function getInstance()
     {
         if (!self::$_instance) {
@@ -22,23 +34,44 @@ class SDebugger
         return self::$_instance;
     }
 
+    /**
+     * Constructor
+     *
+     * @return void
+     */
     public function __construct()
     {
         $this->setHandlers();
     }
 
+    /**
+     * Sets error and exception handler
+     * @return void
+     */
     public function setHandlers()
     {
         set_error_handler(array($this, 'handleError'));
         set_exception_handler(array($this, 'logException'));
     }
 
+    /**
+     * Restore error and exception handler
+     * @return void
+     */
     public function restoreHandlers()
     {
         restore_error_handler();
         restore_exception_handler();
     }
 
+    /**
+     * Sets config.
+     * Accept first argument as key-value array,
+     * or name of param and value as second argument
+     * @param mixed $name array or string
+     * @param mixed $value
+     * @return void
+     */
     public function setConfig($name, $value = null)
     {
         if (is_array($name)) {
@@ -48,7 +81,15 @@ class SDebugger
         }
     }
 
-
+    /**
+     * var_export clone, without using output buffering.
+     * (For calls in ob_handler)
+     *
+     * @param mixed $var to be exported
+     * @param integer $level of current indent
+     * @param integer $maxLevel (recursion protect)
+     * @return string
+     */
     public static function varExport($var, $level = 0, $maxLevel = 10)
     {
         $escapes = "'\"\r\t\x00";
@@ -58,7 +99,7 @@ class SDebugger
             return 'NULL /*MAX LEVEL ' . $maxLevel . ' REACHED*/';
         }
 
-        if (is_boolean($var)) {
+        if (is_bool($var)) {
             return $var ? 'TRUE' : 'FALSE';
         } elseif (is_string($var)) {
             return '"' . addcslashes($var, $escapes) . '"';
@@ -82,7 +123,7 @@ class SDebugger
             $return .= $offset
                 . '"'
                 . addcslashes($key, $escapes)
-                . '" => ' . self::varExport($var, $level + 1, $maxLevel) . ",\n";
+                . '" => ' . self::varExport($value, $level + 1, $maxLevel) . ",\n";
         }
 
         return $return
@@ -110,14 +151,23 @@ class SDebugger
 
     }
 
+    /**
+     * Error handler
+     *
+     * @param $errNo
+     * @param $errStr
+     * @param $errFile
+     * @param $errLine
+     * @return void
+     */
     public function handleError($errNo, $errStr, $errFile, $errLine)
     {
         if (!$this->__config['log_errors']) {
-            return;
+            return false;
         }
 
-        if (!($errno & error_reporting())) {
-            return;
+        if (!($errNo & error_reporting())) {
+            return false;
         }
 
         if ($this->_checkSended($errFile, $errLine)) {
@@ -125,17 +175,17 @@ class SDebugger
         }
 
         $types = array(
-            "E_ERROR", "E_WARNING", "E_PARSE", "E_NOTICE", "E_CORE_ERROR",
-            "E_CORE_WARNING", "E_COMPILE_ERROR", "E_COMPILE_WARNING",
-            "E_USER_ERROR", "E_USER_WARNING", "E_USER_NOTICE", "E_STRICT",
-            "E_RECOVERABLE_ERROR"
+            'E_ERROR', 'E_WARNING', 'E_PARSE', 'E_NOTICE', 'E_CORE_ERROR',
+            'E_CORE_WARNING', 'E_COMPILE_ERROR', 'E_COMPILE_WARNING',
+            'E_USER_ERROR', 'E_USER_WARNING', 'E_USER_NOTICE', 'E_STRICT',
+            'E_RECOVERABLE_ERROR'
         );
 
-        $className = "E_EXCEPTION";
+        $className = 'E_EXCEPTION';
 
         foreach ($types as $t) {
             $e = constant($t);
-            if ($errno & $e) {
+            if ($errNo & $e) {
                 $className = $t;
                 break;
             }
@@ -153,8 +203,15 @@ class SDebugger
         if ($this->_config['throw_errors']) {
             throw $e;
         }
+
+        return true;
     }
 
+    /**
+     * Logs Exception
+     * @param Exception $e
+     * @return void
+     */
     public function logException(Exception $e)
     {
         if (!$this->_config['log_errors']) {
@@ -261,10 +318,6 @@ class SDebuggerException extends Exception
         $this->line = $line;
     }
 }
-
-$logger = new Serov_Debug_Exceptionaizer(array(
-    'mailto' => 'oleg@serov.name'
-));
 
 
 
