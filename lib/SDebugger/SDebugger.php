@@ -1,4 +1,20 @@
 <?php
+/**
+ * This code is distributed under GNU Lesser General Public License
+ * See http://www.gnu.org/copyleft/lesser.html
+ *
+ * How to use it:
+ *
+ *
+ * @category   Debug
+ * @package    SDebugger
+ * @author     Oleg Serov <oleg@serov.name>
+ * @copyright  2010 Oleg Serov <oleg@serov.name>
+ * @license    http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public Licens
+ * @version    Release: 3.4.0
+ * @link       http://github.com/expolit/SDebugger
+ * @since      Class available since Release 2.3.0
+ */
 class SDebugger
 {
     /**
@@ -86,18 +102,15 @@ class SDebugger
      * (For calls in ob_handler)
      *
      * @param mixed $var to be exported
-     * @param integer $level of current indent
      * @param integer $maxLevel (recursion protect)
+     * @param integer $level of current indent
      * @return string
      */
-    public static function varExport($var, $level = 0, $maxLevel = 10)
+    public static function varExport($var, $maxLevel = 10, $level = 0)
     {
-        $escapes = "'\"\r\t\x00";
+        $escapes = "\"\r\t\x00\$";
         $tab = '    ';
 
-        if ($maxLevel > 10) {
-            return 'NULL /*MAX LEVEL ' . $maxLevel . ' REACHED*/';
-        }
 
         if (is_bool($var)) {
             return $var ? 'TRUE' : 'FALSE';
@@ -111,6 +124,10 @@ class SDebugger
             return 'NULL /* ' . $var . ' */';
         }
 
+        if ($maxLevel < $level) {
+            return 'NULL /* ' . (string) $var . ' MAX LEVEL ' . $maxLevel . " REACHED*/";
+        }
+
         if (is_array($var)) {
             $return = "array(\n";
         } else {
@@ -119,12 +136,17 @@ class SDebugger
 
         $offset = str_repeat($tab, $level + 1);
 
-        foreach ($var as $key => $value) {
-            $return .= $offset
-                . '"'
-                . addcslashes($key, $escapes)
-                . '" => ' . self::varExport($value, $level + 1, $maxLevel) . ",\n";
+
+        foreach ((array) $var as $key => $value) {
+            $return .= $offset;
+            if (is_int($key)) {
+                $return .= $key;
+            } else {
+                $return .= '"' . addcslashes($key, $escapes). '"';
+            }
+            $return .= ' => ' . self::varExport($value, $maxLevel, $level + 1) . ",\n";
         }
+
 
         return $return
             . str_repeat($tab, $level)
@@ -247,11 +269,23 @@ class SDebugger
         $this->errorLog($msg);
     }
 
+    /**
+     * Gets mark file name
+     * @param string $file
+     * @param int $line
+     * @return string
+     */
     protected function _getMarkFileName($file, $line)
     {
         return $this->_config['tmp_path'] . get_class($this) . '_' . md5($file . ':' . $line);
     }
 
+    /**
+     * Mark error as sended
+     * @param string $file
+     * @param int $line
+     * @return void
+     */
     protected function _markSended($file, $line)
     {
         $fname = $this->_getMarkFileName($file, $line);
@@ -268,12 +302,25 @@ class SDebugger
         }
     }
 
+    /**
+     * Check if error was not already sended
+     * @param string $file
+     * @param int $line
+     * @return boolean
+     */
     protected function _markCheck($file, $line)
     {
         $fname = $this->_getMarkFileName($file, $line);
         return file_exists($fname) && filemtime($fname) > time() - $this->_config['delay'];
     }
 
+    /**
+     * Mails message and record it in error log
+     *
+     * @param text $subject
+     * @param text $text
+     * @return void
+     */
     public function mail($subject, $text)
     {
         if (!is_string($text)) {
@@ -285,7 +332,13 @@ class SDebugger
         $this->errorLog('PHP Msg: ' . $subject . "\nPHP Msg detail: " . $text);
     }
 
-    private function _mail($subject, $text)
+    /**
+     * Real send mail, only send msg.
+     * @param string $subject
+     * @param string $text
+     * @return void
+     */
+    protected function _mail($subject, $text)
     {
         if (empty($this->_config['mail_to'])) {
             return;
@@ -311,6 +364,14 @@ class SDebugger
 
 class SDebuggerException extends Exception
 {
+    /**
+     * Constructor
+     * @param $no
+     * @param $str
+     * @param $file
+     * @param $line
+     * @return void
+     */
     public function __construct($no = 0, $str = null, $file = null, $line = 0)
     {
         parent::__construct($str, $no);
