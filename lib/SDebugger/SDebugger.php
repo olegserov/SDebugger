@@ -57,17 +57,19 @@ class SDebugger
      */
     public function __construct()
     {
-        $this->setHandlers();
     }
 
     /**
      * Sets error and exception handler
      * @return void
      */
-    public function setHandlers()
+    public function setHandlers(array $config = array())
     {
+
         set_error_handler(array($this, 'handleError'));
         set_exception_handler(array($this, 'logException'));
+
+        $this->setConfig($config);
     }
 
     /**
@@ -161,7 +163,7 @@ class SDebugger
      */
     public function errorLog($msg)
     {
-        if (!ini_get('log_errors') || !self::$_config['log_errors']) {
+        if (!ini_get('log_errors') || !$this->_config['log_errors']) {
             return;
         }
 
@@ -169,7 +171,7 @@ class SDebugger
             error_log(rtrim($line));
         }
 
-        $this->errorLogCustom($msg);
+        //$this->errorLogCustom($msg);
 
     }
 
@@ -184,15 +186,11 @@ class SDebugger
      */
     public function handleError($errNo, $errStr, $errFile, $errLine)
     {
-        if (!$this->__config['log_errors']) {
+        if (!$this->_config['log_errors']) {
             return false;
         }
 
         if (!($errNo & error_reporting())) {
-            return false;
-        }
-
-        if ($this->_checkSended($errFile, $errLine)) {
             return false;
         }
 
@@ -213,6 +211,12 @@ class SDebugger
             }
         }
 
+        $logged = $this->_markCheck($errFile, $errLine);
+
+        if (!$this->_config['throw_errors'] && $logged) {
+            return false;
+        }
+
         $e = new SDebuggerException(
             $errNo,
             $className . ': ' . $errStr,
@@ -220,7 +224,9 @@ class SDebugger
             $errLine
         );
 
-        $this->logException($e);
+        if ($logged) {
+            $this->logException($e);
+        }
 
         if ($this->_config['throw_errors']) {
             throw $e;
@@ -240,13 +246,13 @@ class SDebugger
             return ;
         }
 
-        $need_mail_report = !$this->_checkSended($e->getFile(), $e->getLine());
+        $need_mail_report = !$this->_markCheck($e->getFile(), $e->getLine());
 
         $msg = 'PHP Exception: ' . get_class($e) . ': ' . $e->getMessage() . "\n";
         $msg .= 'PHP Exception: ' . get_class($e) . ': ' . $e->getFile() . ':' . $e->getLine() . "\n";
         $msg .= 'PHP Exception Trace: ' . $e->getTraceAsString();
 
-        if ($need_detail_log) {
+        /*if ($need_detail_log) {
             if ($this->_config['custom_log_format']) {
                 $log = call_user_funct($this->_config['custom_log_format']);
             } else {
@@ -258,9 +264,9 @@ class SDebugger
             }
             $msg .= is_string($log) ? $log : self::varExport($log);
             $log = null;
-        }
+        }*/
 
-        if ($need_mail_report && !$this->isDebugMode()) {
+        if ($need_mail_report && !$this->_config['log_errors']) {
             $this->_markSended($e->getFile(), $e->getLine());
             $this->_mail($msg, 'PHP Exception: ' . get_class($e) . ': ' . $e->getMessage());
         }
